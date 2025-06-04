@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Futbol Fikstür Analizi - Karşılaştırma</title>
+    <link rel="stylesheet" href="/theme.css">
+    <link rel="stylesheet" href="/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <div class="app-header">
+            <div class="logo-container">
+                <div class="logo">⚽</div>
+                <div class="app-title">Fikstür Karşılaştırması</div>
+            </div>
+        </div>
+        
+        <div id="team1-info"></div>
+        
+        <div class="input-container">
+            <div id="team-input-section-1" class="team-input-section">
+                <input type="text" id="teamUrlInput-1" placeholder="Takım URL'sini girin (Örn: https://www.mackolik.com/takim/fenerbahce/2f1d2g/fikstur)" size="70">
+                <button class="load-team-fixtures-btn" data-team-id="1">Takım Fikstürünü Yükle</button>
+            </div>
+            <div id="team-input-section-2" class="team-input-section">
+                <input type="text" id="teamUrlInput-2" placeholder="Takım URL'sini girin (Opsiyonel)" size="70">
+                <button class="load-team-fixtures-btn" data-team-id="2">Takım Fikstürünü Yükle</button>
+            </div>
+            <div id="team-input-section-3" class="team-input-section">
+                <input type="text" id="teamUrlInput-3" placeholder="Takım URL'sini girin (Opsiyonel)" size="70">
+                <button class="load-team-fixtures-btn" data-team-id="3">Takım Fikstürünü Yükle</button>
+            </div>
+            <div id="team-input-section-4" class="team-input-section">
+                <input type="text" id="teamUrlInput-4" placeholder="Takım URL'sini girin (Opsiyonel)" size="70">
+                <button class="load-team-fixtures-btn" data-team-id="4">Takım Fikstürünü Yükle</button>
+            </div>
+            <div id="team-input-section-5" class="team-input-section">
+                <input type="text" id="teamUrlInput-5" placeholder="Takım URL'sini girin (Opsiyonel)" size="70">
+                <button class="load-team-fixtures-btn" data-team-id="5">Takım Fikstürünü Yükle</button>
+            </div>
+            <button id="loadAllTeamsFixturesBtn">Tüm Takımların Fikstürlerini Yükle</button>
+        </div>
+        <div id="competition-filters">
+            <h3>Ligleri Filtrele:</h3>
+            <div id="competition-checkboxes"></div>
+            <button id="applyFiltersBtn">Filtreleri Uygula</button>
+        </div>
+        
+        <div id="comparison-result"></div>
+        <div id="surprise-match-selection"></div>
+        <button id="startComparisonBtn" style="display: none;">Karşılaştırmayı Başlat</button>
+        <button id="clearComparisonBtn" style="display: none;">Temizle</button>
+        <button id="goToDetailBtn" style="display: none;">Detaylı Analiz</button>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const loadedTeams = {}; // Store loaded team data
+            const selectedSurpriseMatches = {}; // Store selected surprise matches for each team
+            let surpriseMatchCount = 0;
+
+            // Load team1 data from localStorage (initial team from index.html)
+            const initialTeamFixtures = JSON.parse(localStorage.getItem('team1Fixtures'));
+            const initialSurpriseMatchIndex = parseInt(localStorage.getItem('team1SurpriseMatchIndex'));
+
+            if (initialTeamFixtures && !isNaN(initialSurpriseMatchIndex)) {
+                const teamId = 'team-1'; // Assign a default ID for the initial team
+                loadedTeams[teamId] = {
+                    fixtures: initialTeamFixtures,
+                    surpriseMatchIndex: initialSurpriseMatchIndex,
+                    teamName: getTeamNameFromFixtures(initialTeamFixtures)
+                };
+                selectedSurpriseMatches[teamId] = initialTeamFixtures[initialSurpriseMatchIndex];
+                surpriseMatchCount++;
+                updateTeamInfoDisplay();
+                updateStartComparisonButton();
+            }
+
+            // Event listeners for individual team fixture loading buttons
+            document.querySelectorAll('.load-team-fixtures-btn').forEach(button => {
+                button.addEventListener('click', async (event) => {
+                    const teamId = `team-${event.target.dataset.teamId}`;
+                    const teamUrlInput = document.getElementById(`teamUrlInput-${event.target.dataset.teamId}`);
+                    const teamUrl = teamUrlInput.value.trim();
+
+                    if (!teamUrl) {
+                        alert('Lütfen bir takım URL\'si girin.');
+                        return;
+                    }
+
+                    try {
+                        const response = await fetch(`/fixtures?url=${encodeURIComponent(teamUrl)}`);
+                        const allTeamFixtures = await response.json();
+
+                        if (allTeamFixtures.length === 0) {
+                            alert('Bu URL için fikstür verisi bulunamadı.');
+                            return;
+                        }
+
+                        loadedTeams[teamId] = {
+                            fixtures: allTeamFixtures,
+                            teamName: getTeamNameFromFixtures(allTeamFixtures)
+                        };
+                        displaySurpriseMatchesForSelection(teamId, allTeamFixtures);
+                        updateTeamInfoDisplay();
+                        updateStartComparisonButton();
+
+                    } catch (error) {
+                        console.error('Fikstür verisi yüklenirken hata oluştu:', error);
+                        alert('Fikstür verisi yüklenirken bir hata oluştu.');
+                    }
+                });
+            });
+
+            // Event listener for "Load All Teams Fixtures" button
+            document.getElementById('loadAllTeamsFixturesBtn').addEventListener('click', async () => {
+                const teamUrls = {};
+                for (let i = 1; i <= 5; i++) {
+                    const teamUrlInput = document.getElementById(`teamUrlInput-${i}`);
+                    const teamUrl = teamUrlInput.value.trim();
+                    if (teamUrl) {
+                        teamUrls[`team-${i}`] = teamUrl;
+                    }
+                }
+
+                if (Object.keys(teamUrls).length === 0) {
+                    alert('Lütfen en az bir takım URL\'si girin.');
+                    return;
+                }
+
+                for (const teamId in teamUrls) {
+                    try {
+                        const response = await fetch(`/fixtures?url=${encodeURIComponent(teamUrls[teamId])}`);
+                        const allTeamFixtures = await response.json();
+
+                        if (allTeamFixtures.length === 0) {
+                            alert(`${teamId} için fikstür verisi bulunamadı.`);
+                            continue;
+                        }
+
+                        loadedTeams[teamId] = {
+                            fixtures: allTeamFixtures,
+                            teamName: getTeamNameFromFixtures(allTeamFixtures)
+                        };
+                        displaySurpriseMatchesForSelection(teamId, allTeamFixtures);
+                    } catch (error) {
+                        console.error(`Fikstür verisi yüklenirken hata oluştu ${teamId}:`, error);
+                        alert(`Fikstür verisi yüklenirken bir hata oluştu ${teamId}.`);
+                    }
+                }
+                updateTeamInfoDisplay();
+                updateStartComparisonButton();
+            });
+
+            function updateTeamInfoDisplay() {
+                const teamInfoDiv = document.getElementById('team1-info');
+                teamInfoDiv.innerHTML = '';
+                for (const teamId in loadedTeams) {
+                    const team = loadedTeams[teamId];
+                    let surpriseMatchHtml = '';
+                    if (selectedSurpriseMatches[teamId]) {
+                        const match = selectedSurpriseMatches[teamId];
+                        surpriseMatchHtml = `
+                            <div class="fixture-card">
+                                <div class="fixture-date">${match.date}</div>
+                                <div class="fixture-teams">
+                                    <span class="team-name">${match.homeTeam}</span>
+                                    <span class="score">${match.score}</span>
+                                    <span class="team-name">${match.awayTeam}</span>
+                                </div>
+                                <div class="half-time-score">İlk Yarı: ${match.halfTimeScore || 'N/A'}</div>
+                            </div>
+                        `;
+                    }
+                    teamInfoDiv.innerHTML += `
+                        <h2>${team.teamName} (Takım ${teamId.split('-')[1]}) Seçilen Sürpriz Maç:</h2>
+                        ${surpriseMatchHtml || '<p>Sürpriz maç seçilmedi.</p>'}
+                    `;
+                }
+            }
+
+            function displaySurpriseMatchesForSelection(teamId, fixtures) {
+                const surpriseMatchSelectionDiv = document.getElementById('surprise-match-selection');
+                const teamSurpriseMatches = getSurpriseMatches(fixtures);
+
+                if (teamSurpriseMatches.length === 0) {
+                    surpriseMatchSelectionDiv.innerHTML += `<p>${loadedTeams[teamId].teamName} için sürpriz maç bulunamadı.</p>`;
+                    return;
+                }
+
+                const teamSection = document.createElement('div');
+                teamSection.innerHTML = `<h3>${loadedTeams[teamId].teamName} (Takım ${teamId.split('-')[1]}) Sürpriz Maçları:</h3>`;
+
+                teamSurpriseMatches.forEach((match, index) => {
+                    const matchCard = document.createElement('div');
+                    matchCard.classList.add('fixture-card', 'surprise-match');
+                    matchCard.innerHTML = `
+                        <div class="fixture-date">${match.date}</div>
+                        <div class="surprise-label">SÜRPRİZ MAÇ</div>
+                        <div class="fixture-teams">
+                            <span class="team-name">${match.homeTeam}</span>
+                            <span class="score">${match.score}</span>
+                            <span class="team-name">${match.awayTeam}</span>
+                        </div>
+                        <div class="half-time-score">İlk Yarı: ${match.halfTimeScore || 'N/A'}</div>
+                    `;
+
+                    matchCard.addEventListener('click', () => {
+                        // Deselect previous surprise match for this team if any
+                        if (selectedSurpriseMatches[teamId]) {
+                            const prevMatch = selectedSurpriseMatches[teamId];
+                            const prevMatchCard = surpriseMatchSelectionDiv.querySelector(`[data-team-id="${teamId}"][data-match-index="${fixtures.indexOf(prevMatch)}"]`);
+                            if (prevMatchCard) {
+                                prevMatchCard.classList.remove('selected');
+                            }
+                        } else {
+                            surpriseMatchCount++;
+                        }
+
+                        selectedSurpriseMatches[teamId] = match;
+                        loadedTeams[teamId].surpriseMatchIndex = fixtures.indexOf(match);
+                        matchCard.classList.add('selected');
+                        updateTeamInfoDisplay();
+                        updateStartComparisonButton();
+                    });
+                    matchCard.dataset.teamId = teamId;
+                    matchCard.dataset.matchIndex = fixtures.indexOf(match);
+                    teamSection.appendChild(matchCard);
+                });
+                surpriseMatchSelectionDiv.appendChild(teamSection);
+            }
+
+            function getSurpriseMatches(fixtures) {
+                return fixtures.filter((fixture) => {
+                    const getWinner = (scoreStr) => {
+                        if (!scoreStr) return null;
+                        const [homeScore, awayScore] = scoreStr.split('-').map(Number);
+                        if (homeScore > awayScore) return 'H';
+                        if (awayScore > homeScore) return 'A';
+                        return 'D';
+                    };
+
+                    const halfTimeWinner = getWinner(fixture.halfTimeScore);
+                    const fullTimeWinner = getWinner(fixture.score);
+
+                    return (halfTimeWinner !== 'D' && fullTimeWinner !== 'D' && halfTimeWinner !== fullTimeWinner);
+                });
+            }
+
+            function updateStartComparisonButton() {
+                const startComparisonBtn = document.getElementById('startComparisonBtn');
+                const numSelectedSurpriseMatches = Object.keys(selectedSurpriseMatches).length;
+                if (numSelectedSurpriseMatches >= 2) {
+                    startComparisonBtn.style.display = 'block';
+                } else {
+                    startComparisonBtn.style.display = 'none';
+                }
+            }
+
+            document.getElementById('startComparisonBtn').addEventListener('click', () => {
+                const comparisonResult = document.getElementById('comparison-result');
+                comparisonResult.innerHTML = '<h2>Karşılaştırma Sonuçları:</h2>';
+
+                const selectedTeamIds = Object.keys(selectedSurpriseMatches);
+                if (selectedTeamIds.length < 2) {
+                    alert('Lütfen en az iki takım için sürpriz maç seçin.');
+                    return;
+                }
+
+                const allComparisons = [];
+
+                // Perform comparisons for all pairs of selected teams
+                for (let i = 0; i < selectedTeamIds.length; i++) {
+                    for (let j = i + 1; j < selectedTeamIds.length; j++) {
+                        const team1Id = selectedTeamIds[i];
+                        const team2Id = selectedTeamIds[j];
+
+                        const team1Fixtures = loadedTeams[team1Id].fixtures;
+                        const team1SurpriseIndex = loadedTeams[team1Id].surpriseMatchIndex;
+                        const team2Fixtures = loadedTeams[team2Id].fixtures;
+                        const team2SurpriseIndex = loadedTeams[team2Id].surpriseMatchIndex;
+
+                        const team1Name = loadedTeams[team1Id].teamName;
+                        const team2Name = loadedTeams[team2Id].teamName;
+
+                        const pairComparisonResult = document.createElement('div');
+                        pairComparisonResult.innerHTML = `<h3>${team1Name} ve ${team2Name} Arasındaki Karşılaştırma:</h3>`;
+                        const currentComparisonMatches = compareFixtures(team1Fixtures, team1SurpriseIndex, team2Fixtures, team2SurpriseIndex, pairComparisonResult);
+                        allComparisons.push({ pair: [team1Id, team2Id], matches: currentComparisonMatches });
+                        comparisonResult.appendChild(pairComparisonResult);
+                    }
+                }
+
+                // Analyze common matches across all comparisons
+                if (selectedTeamIds.length >= 3) {
+                    const commonOpponents = {};
+                    allComparisons.forEach(comp => {
+                        comp.matches.forEach(match => {
+                            const key = `${match.opponent}-${match.position}`;
+                            if (!commonOpponents[key]) {
+                                commonOpponents[key] = new Set();
+                            }
+                            commonOpponents[key].add(comp.pair[0]);
+                            commonOpponents[key].add(comp.pair[1]);
+                        });
+                    });
+
+                    const allTeamsCount = selectedTeamIds.length;
+                    const trulyCommonMatches = Object.keys(commonOpponents).filter(key => commonOpponents[key].size === allTeamsCount);
+
+                    if (trulyCommonMatches.length > 0) {
+                        const commonMatchesDiv = document.createElement('div');
+                        commonMatchesDiv.innerHTML = '<h2>Tüm Takımlarda Ortak Eşleşmeler:</h2>';
+                        trulyCommonMatches.forEach(key => {
+                            const [opponent, position] = key.split('-');
+                            commonMatchesDiv.innerHTML += `
+                                <div class="comparison-card common-match">
+                                    <p><strong>Ortak Eşleşme:</strong> ${opponent} ${position} maç önce</p>
+                                </div>
+                            `;
+                        });
+                        comparisonResult.prepend(commonMatchesDiv);
+                    }
+                }
+
+                document.getElementById('clearComparisonBtn').style.display = 'block';
+                document.getElementById('goToDetailBtn').style.display = 'block';
+                localStorage.setItem('allComparisons', JSON.stringify(allComparisons));
+            });
+
+            // Modify compareFixtures to accept a result container and return matches
+            function compareFixtures(team1Fixtures, team1SurpriseIndex, team2Fixtures, team2SurpriseIndex, resultContainer) {
+                const team1PreviousMatches = team1Fixtures.slice(0, team1SurpriseIndex);
+                const team2PreviousMatches = team2Fixtures.slice(0, team2SurpriseIndex);
+
+                const matches = [];
+                const maxComparisonDepth = Math.min(team1PreviousMatches.length, team2PreviousMatches.length);
+
+                for (let i = 1; i <= maxComparisonDepth; i++) {
+                    const team1Match = team1PreviousMatches[team1PreviousMatches.length - i];
+                    const team2Match = team2PreviousMatches[team2PreviousMatches.length - i];
+
+                    const team1Opponent = team1Match.homeTeam === loadedTeams[Object.keys(loadedTeams).find(key => loadedTeams[key].fixtures === team1Fixtures)].teamName || team1Match.awayTeam === loadedTeams[Object.keys(loadedTeams).find(key => loadedTeams[key].fixtures === team1Fixtures)].teamName ? (team1Match.homeTeam === loadedTeams[Object.keys(loadedTeams).find(key => loadedTeams[key].fixtures === team1Fixtures)].teamName ? team1Match.awayTeam : team1Match.homeTeam) : null;
+                    const team2Opponent = team2Match.homeTeam === loadedTeams[Object.keys(loadedTeams).find(key => loadedTeams[key].fixtures === team2Fixtures)].teamName || team2Match.awayTeam === loadedTeams[Object.keys(loadedTeams).find(key => loadedTeams[key].fixtures === team2Fixtures)].teamName ? (team2Match.homeTeam === loadedTeams[Object.keys(loadedTeams).find(key => loadedTeams[key].fixtures === team2Fixtures)].teamName ? team2Match.awayTeam : team2Match.homeTeam) : null;
+
+                    if (team1Opponent && team2Opponent && team1Opponent === team2Opponent) {
+                        matches.push({
+                            opponent: team1Opponent,
+                            position: i
+                        });
+                    }
+                }
+
+                if (matches.length > 0) {
+                    matches.forEach((match, index) => {
+                        resultContainer.innerHTML += `
+                            <div class="comparison-card">
+                                <p><strong>${index + 1}. Eşleşme:</strong> ${match.opponent} ${match.position} maç önce</p>
+                            </div>
+                        `;
+                    });
+                } else {
+                    resultContainer.innerHTML += '<p>Belirtilen maç sayısı öncesinde eşleşen rakip bulunamadı.</p>';
+                }
+
+                let scoreMatchFound = false;
+                let scoreMatchDetails = '';
+
+                const normalizeScore = (scoreStr) => {
+                    if (!scoreStr) return null;
+                    const [s1, s2] = scoreStr.split('-').map(Number).sort((a, b) => a - b);
+                    return `${s1}-${s2}`;
+                };
+
+                for (let i = 0; i < team1PreviousMatches.length; i++) {
+                    const team1Match = team1PreviousMatches[i];
+                    const normalizedTeam1Score = normalizeScore(team1Match.score);
+
+                    for (let j = 0; j < team2PreviousMatches.length; j++) {
+                        const team2Match = team2PreviousMatches[j];
+                        const normalizedTeam2Score = normalizeScore(team2Match.score);
+
+                        if (normalizedTeam1Score && normalizedTeam1Score === normalizedTeam2Score) {
+                            scoreMatchFound = true;
+                            scoreMatchDetails = `Şart 2: ${team1Match.homeTeam} ${team1Match.score} ${team1Match.awayTeam} (${team1Match.date}) ile ${team2Match.homeTeam} ${team2Match.score} ${team2Match.awayTeam} (${team2Match.date}) maçlarının skorları aynı.`;
+                            break;
+                        }
+                    }
+                    if (scoreMatchFound) break;
+                }
+
+                if (scoreMatchFound) {
+                    resultContainer.innerHTML += `<p>${scoreMatchDetails}</p>`;
+                } else {
+                    resultContainer.innerHTML += '<p>Şart 2: Tüm geçmiş maçlarda skor eşleşmesi bulunamadı.</p>';
+                }
+                return matches; // Return the matches found for this pair
+            }
+
+            function getTeamNameFromFixtures(fixtures) {
+                if (!fixtures || fixtures.length === 0) {
+                    return 'Bilinmeyen Takım';
+                }
+
+                const teamNames = {};
+                fixtures.forEach(fixture => {
+                    teamNames[fixture.homeTeam] = (teamNames[fixture.homeTeam] || 0) + 1;
+                    teamNames[fixture.awayTeam] = (teamNames[fixture.awayTeam] || 0) + 1;
+                });
+
+                let mainTeamName = '';
+                let maxCount = 0;
+                for (const team in teamNames) {
+                    if (teamNames[team] > maxCount) {
+                        maxCount = teamNames[team];
+                        mainTeamName = team;
+                    }
+                }
+                return mainTeamName;
+            }
+
+            function getTeamNameFromFixtures(fixtures) {
+                if (!fixtures || fixtures.length === 0) {
+                    return 'Bilinmeyen Takım';
+                }
+
+                const teamNames = {};
+                fixtures.forEach(fixture => {
+                    teamNames[fixture.homeTeam] = (teamNames[fixture.homeTeam] || 0) + 1;
+                    teamNames[fixture.awayTeam] = (teamNames[fixture.awayTeam] || 0) + 1;
+                });
+
+                let mainTeamName = '';
+                let maxCount = 0;
+                for (const team in teamNames) {
+                    if (teamNames[team] > maxCount) {
+                        maxCount = teamNames[team];
+                        mainTeamName = team;
+                    }
+                }
+                return mainTeamName;
+            }
+
+            document.getElementById('clearComparisonBtn').addEventListener('click', () => {
+                for (let i = 1; i <= 5; i++) {
+                    document.getElementById(`teamUrlInput-${i}`).value = '';
+                }
+                document.getElementById('comparison-result').innerHTML = '';
+                document.getElementById('surprise-match-selection').innerHTML = '';
+                document.getElementById('clearComparisonBtn').style.display = 'none';
+                document.getElementById('startComparisonBtn').style.display = 'none';
+                document.getElementById('team1-info').innerHTML = '';
+                localStorage.removeItem('team1Fixtures');
+                localStorage.removeItem('team1SurpriseMatchIndex');
+                // Do not close the window, just clear the state
+                loadedTeams = {};
+                selectedSurpriseMatches = {};
+                surpriseMatchCount = 0;
+                // document.getElementById('competition-filters').style.display = 'none';
+                // document.getElementById('applyFiltersBtn').style.display = 'none';
+                document.getElementById('goToDetailBtn').style.display = 'none';
+                localStorage.removeItem('allComparisons');
+            });
+
+            document.getElementById('goToDetailBtn').addEventListener('click', () => {
+                window.location.href = 'detail.html';
+            });
+
+            // Initial setup for competition filters (moved here to be accessible)
+            document.getElementById('applyFiltersBtn').addEventListener('click', () => {
+                const competitionCheckboxesDiv = document.getElementById('competition-checkboxes');
+                const selectedCompetitions = Array.from(competitionCheckboxesDiv.querySelectorAll('input[type="checkbox"]:checked'))
+                    .map(cb => cb.value);
+
+                // Apply filters to all loaded teams
+                for (const teamId in loadedTeams) {
+                    const originalFixtures = loadedTeams[teamId].fixtures;
+                    const filteredFixtures = originalFixtures.filter(f => selectedCompetitions.includes(f.competition));
+                    loadedTeams[teamId].fixtures = filteredFixtures;
+                    // Re-display surprise matches for selection based on filtered fixtures
+                    displaySurpriseMatchesForSelection(teamId, filteredFixtures);
+                }
+                updateTeamInfoDisplay();
+                updateStartComparisonButton();
+            });
+
+            // Populate competition filters from all loaded teams
+            function populateCompetitionFilters() {
+                const allCompetitions = new Set();
+                for (const teamId in loadedTeams) {
+                    loadedTeams[teamId].fixtures.forEach(f => allCompetitions.add(f.competition));
+                }
+
+                const competitionCheckboxesDiv = document.getElementById('competition-checkboxes');
+                competitionCheckboxesDiv.innerHTML = ''; // Clear previous checkboxes
+
+                // Always show the filter section, even if no competitions are found yet
+                document.getElementById('competition-filters').style.display = 'block';
+                document.getElementById('applyFiltersBtn').style.display = 'block';
+
+                if (allCompetitions.size > 0) {
+                    allCompetitions.forEach(comp => {
+                        const checkbox = document.createElement('input');
+                        checkbox.type = 'checkbox';
+                        checkbox.id = `comp-${comp.replace(/\s/g, '-')}`;
+                        checkbox.value = comp;
+                        checkbox.checked = true; // All checked by default
+
+                        const label = document.createElement('label');
+                        label.htmlFor = `comp-${comp.replace(/\s/g, '-')}`;
+                        label.textContent = comp;
+
+                        competitionCheckboxesDiv.appendChild(checkbox);
+                        competitionCheckboxesDiv.appendChild(label);
+                        competitionCheckboxesDiv.appendChild(document.createElement('br'));
+                    });
+                } else {
+                    // Optionally, display a message if no competitions are found
+                    competitionCheckboxesDiv.innerHTML = '<p>Yüklü takımlar için lig bulunamadı.</p>';
+                }
+            }
+
+            // Call populateCompetitionFilters after all teams are loaded or when a new team is loaded
+            // This needs to be triggered after `loadAllTeamsFixturesBtn` click or individual team loads
+            // For now, let's assume it's called after `loadAllTeamsFixturesBtn` for simplicity.
+            // A more robust solution would involve calling it after each successful team load.
+            document.getElementById('loadAllTeamsFixturesBtn').addEventListener('click', populateCompetitionFilters);
+            document.querySelectorAll('.load-team-fixtures-btn').forEach(button => {
+                button.addEventListener('click', populateCompetitionFilters);
+            });
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,54 @@
+<%- layout('layout') %>
+
+<div class="modal" style="display: block;"> <!-- Displayed by default for this page -->
+    <div class="modal-content">
+        <h2>Erişim Kodu Girin</h2>
+        <p><strong><%= post.title %></strong> içeriğine erişmek için lütfen erişim kodunu girin.</p>
+        <form id="accessForm" action="/verify-access" method="POST">
+            <input type="hidden" id="postIdInput" name="postId" value="<%= post.id %>">
+            <div class="form-group">
+                <label for="accessCodeInput">Erişim Kodu:</label>
+                <input type="text" id="accessCodeInput" name="accessCode" required>
+            </div>
+            <p id="errorMessage" style="color: red;"></p>
+            <button type="submit" class="btn">Eriş</button>
+        </form>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const accessForm = document.getElementById('accessForm');
+        const accessCodeInput = document.getElementById('accessCodeInput');
+        const postIdInput = document.getElementById('postIdInput');
+        const errorMessage = document.getElementById('errorMessage');
+
+        accessForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+
+            const postId = postIdInput.value;
+            const accessCode = accessCodeInput.value;
+
+            try {
+                const response = await fetch('/verify-access', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ postId, accessCode }),
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    window.location.href = data.redirectUrl;
+                } else {
+                    errorMessage.textContent = data.message;
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                errorMessage.textContent = 'An error occurred. Please try again.';
+            }
+        });
+    });
+</script>

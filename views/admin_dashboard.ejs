@@ -1,0 +1,32 @@
+<%- layout('layout') %>
+
+<div class="container">
+    <h2 style="color: #4CAF50;">Admin Paneli - Gönderiler</h2>
+    <p><a href="/admin/new-post" class="btn">Yeni Gönderi Ekle</a></p>
+
+    <table class="admin-table">
+        <thead>
+            <tr>
+                <th>Başlık</th>
+                <th>Erişim Kodu</th>
+                <th>Oluşturulma Tarihi</th>
+                <th>İşlemler</th>
+            </tr>
+        </thead>
+        <tbody>
+            <% posts.forEach(post => { %>
+                <tr>
+                    <td><%= post.title %></td>
+                    <td><%= post.accessCode %></td>
+                    <td><%= new Date(post.createdAt).toLocaleDateString() %></td>
+                    <td class="admin-actions">
+                        <a href="/admin/edit-post/<%= post.id %>" class="btn" style="background-color: #007bff;">Düzenle</a>
+                        <form action="/admin/delete-post/<%= post.id %>" method="POST" style="display: inline;" onsubmit="return confirm('Bu gönderiyi silmek istediğinizden emin misiniz?');">
+                            <button type="submit" class="btn" style="background-color: #dc3545;">Sil</button>
+                        </form>
+                    </td>
+                </tr>
+            <% }); %>
+        </tbody>
+    </table>
+</div>

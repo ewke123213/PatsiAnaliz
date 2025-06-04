@@ -1,0 +1,42 @@
+<%- layout('layout') %>
+
+<div class="container">
+    <div class="post-content-full">
+        <h1><%= post.title %></h1>
+        
+        <div class="post-meta">
+            <span class="post-date"><i class="fas fa-calendar-alt"></i> <%= new Date(post.createdAt).toLocaleDateString('tr-TR', { year: 'numeric', month: 'long', day: 'numeric' }) %></span>
+        </div>
+        
+        <div class="post-image">
+            <img src="<%= post.thumbnailUrl %>" alt="<%= post.title %>">
+        </div>
+        
+        <div class="content-text">
+            <%- post.content %>
+        </div>
+        
+        <div class="post-actions">
+            <a href="/" class="btn"><i class="fas fa-home"></i> Ana Sayfaya Dön</a>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Sayfa yüklendiğinde animasyon efektleri
+    document.addEventListener('DOMContentLoaded', () => {
+        const contentElements = document.querySelectorAll('.content-text p, .content-text h2, .content-text h3, .content-text ul, .content-text ol');
+        
+        // İçerik elementlerine sırayla animasyon ekle
+        contentElements.forEach((element, index) => {
+            element.style.opacity = '0';
+            element.style.transform = 'translateY(20px)';
+            element.style.transition = 'opacity 0.5s ease, transform 0.5s ease';
+            
+            setTimeout(() => {
+                element.style.opacity = '1';
+                element.style.transform = 'translateY(0)';
+            }, 300 + (index * 100));
+        });
+    });
+</script>

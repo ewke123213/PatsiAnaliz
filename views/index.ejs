@@ -1,0 +1,50 @@
+<%- layout('layout') %>
+
+<div class="container">
+    <h1 class="page-title">Patsi Analiz İçerikleri</h1>
+    <p class="page-description">Aşağıdaki içeriklerden birini seçerek detaylı analizlere erişebilirsiniz.</p>
+    
+    <div class="post-grid">
+        <% if (posts && posts.length > 0) { %>
+            <% posts.forEach(post => { %>
+                <div class="post-card" data-post-id="<%= post.id %>">
+                    <div class="post-card-thumbnail">
+                        <img src="<%= post.thumbnailUrl %>" alt="<%= post.title %>">
+                    </div>
+                    <div class="post-card-content">
+                        <div class="post-card-meta">
+                            <i class="fas fa-calendar-alt"></i>
+                            <span><%= new Date(post.createdAt).toLocaleDateString('tr-TR', { year: 'numeric', month: 'short', day: 'numeric' }) %></span>
+                        </div>
+                        <h3 class="post-card-title"><%= post.title %></h3>
+                        <p class="post-card-description">Bu içeriğe erişmek için tıklayın ve erişim kodunu girin.</p>
+                        <div class="post-card-action">
+                            <button class="btn btn-access">İçeriğe Eriş</button>
+                        </div>
+                    </div>
+                </div>
+            <% }); %>
+        <% } else { %>
+            <div class="no-posts">
+                <p>Henüz içerik bulunmamaktadır.</p>
+            </div>
+        <% } %>
+    </div>
+</div>
+
+<!-- Access Code Modal -->
+<div id="accessModal" class="modal">
+    <div class="modal-content">
+        <span class="close-button">&times;</span>
+        <h2>Erişim Kodu Girin</h2>
+        <form id="accessForm">
+            <input type="hidden" id="postIdInput" name="postId">
+            <div class="form-group">
+                <label for="accessCodeInput">Erişim Kodu:</label>
+                <input type="text" id="accessCodeInput" name="accessCode" required>
+            </div>
+            <p id="errorMessage" style="color: red;"></p>
+            <button type="submit" class="btn">Eriş</button>
+        </form>
+    </div>
+</div>

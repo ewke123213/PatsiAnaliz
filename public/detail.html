@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Detaylı Analiz</title>
+    <link rel="stylesheet" href="/theme.css">
+    <link rel="stylesheet" href="/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <div class="app-header">
+            <div class="logo-container">
+                <div class="logo">⚽</div>
+                <div class="app-title">Detaylı Fikstür Analizi</div>
+            </div>
+        </div>
+        
+        <div class="input-container">
+            <h3>Analiz Edilecek Takım URL'lerini Girin (En fazla 10):</h3>
+            <div id="analysis-team-inputs">
+                <!-- Team URL inputs will be added here dynamically -->
+            </div>
+            <button id="addTeamUrlInput">Takım Ekle</button>
+            <button id="loadAnalysisTeamsFixturesBtn">Fikstürleri Yükle</button>
+        </div>
+
+        <div id="opponent-selection-section" style="display: none;">
+            <h3>Ortak Rakip Seçin:</h3>
+            <select id="opponent-select"></select>
+            <button id="analyzeOpponentBtn">Rakibi Analiz Et</button>
+        </div>
+
+        <div id="analysis-results"></div>
+
+        <button id="backToComparisonBtn">Karşılaştırma Sayfasına Geri Dön</button>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const analysisTeamInputsDiv = document.getElementById('analysis-team-inputs');
+            const addTeamUrlInputBtn = document.getElementById('addTeamUrlInput');
+            const loadAnalysisTeamsFixturesBtn = document.getElementById('loadAnalysisTeamsFixturesBtn');
+            const opponentSelectionSection = document.getElementById('opponent-selection-section');
+            const opponentSelect = document.getElementById('opponent-select');
+            const analyzeOpponentBtn = document.getElementById('analyzeOpponentBtn');
+            const analysisResultsDiv = document.getElementById('analysis-results');
+            const backToComparisonBtn = document.getElementById('backToComparisonBtn');
+
+            let analysisTeams = {}; // Store loaded analysis team data
+            let allComparisons = JSON.parse(localStorage.getItem('allComparisons')) || [];
+
+            // Function to add a new team URL input field
+            function addTeamInput() {
+                const inputCount = analysisTeamInputsDiv.children.length / 2; // Each input has a button
+                if (inputCount >= 10) {
+                    alert('En fazla 10 takım URL\'si girebilirsiniz.');
+                    return;
+                }
+                const teamInputDiv = document.createElement('div');
+                teamInputDiv.classList.add('team-input-section');
+                teamInputDiv.innerHTML = `
+                    <input type="text" id="analysisTeamUrlInput-${inputCount + 1}" placeholder="Takım URL'sini girin" size="70">
+                `;
+                analysisTeamInputsDiv.appendChild(teamInputDiv);
+            }
+
+            // Add initial input fields
+            for (let i = 0; i < 3; i++) { // Start with 3 input fields
+                addTeamInput();
+            }
+
+            addTeamUrlInputBtn.addEventListener('click', addTeamInput);
+
+            loadAnalysisTeamsFixturesBtn.addEventListener('click', async () => {
+                analysisTeams = {}; // Clear previous data
+                const teamUrlInputs = analysisTeamInputsDiv.querySelectorAll('input[type="text"]');
+                let loadedCount = 0;
+
+                for (let i = 0; i < teamUrlInputs.length; i++) {
+                    const teamUrl = teamUrlInputs[i].value.trim();
+                    if (teamUrl) {
+                        try {
+                            const response = await fetch(`/fixtures?url=${encodeURIComponent(teamUrl)}`);
+                            const allTeamFixtures = await response.json();
+
+                            if (allTeamFixtures.length === 0) {
+                                alert(`URL ${teamUrl} için fikstür verisi bulunamadı.`);
+                                continue;
+                            }
+
+                            const teamId = `analysis-team-${i + 1}`;
+                            analysisTeams[teamId] = {
+                                fixtures: allTeamFixtures,
+                                teamName: getTeamNameFromFixtures(allTeamFixtures) // Assuming this function exists or will be added
+                            };
+                            loadedCount++;
+                        } catch (error) {
+                            console.error(`Fikstür verisi yüklenirken hata oluştu ${teamUrl}:`, error);
+                            alert(`Fikstür verisi yüklenirken bir hata oluştu ${teamUrl}.`);
+                        }
+                    }
+                }
+
+                if (loadedCount > 0) {
+                    populateOpponentSelect();
+                    opponentSelectionSection.style.display = 'block';
+                } else {
+                    alert('Lütfen analiz etmek için en az bir takım URL\'si girin.');
+                }
+            });
+
+            function populateOpponentSelect() {
+                const allOpponents = new Set();
+                // Collect all opponents from all loaded analysis teams
+                for (const teamId in analysisTeams) {
+                    analysisTeams[teamId].fixtures.forEach(fixture => {
+                        const teamName = analysisTeams[teamId].teamName;
+                        if (fixture.homeTeam === teamName) {
+                            allOpponents.add(fixture.awayTeam);
+                        } else if (fixture.awayTeam === teamName) {
+                            allOpponents.add(fixture.homeTeam);
+                        }
+                    });
+                }
+
+                opponentSelect.innerHTML = '<option value="">Rakip Seçin</option>';
+                allOpponents.forEach(opponent => {
+                    const option = document.createElement('option');
+                    option.value = opponent;
+                    option.textContent = opponent;
+                    opponentSelect.appendChild(option);
+                });
+            }
+
+            analyzeOpponentBtn.addEventListener('click', () => {
+                const selectedOpponent = opponentSelect.value;
+                if (!selectedOpponent) {
+                    alert('Lütfen analiz etmek için bir rakip seçin.');
+                    return;
+                }
+
+                analysisResultsDiv.innerHTML = ''; // Clear previous results
+
+                for (const teamId in analysisTeams) {
+                    const team = analysisTeams[teamId];
+                    let matchFound = false;
+                    let matchDetails = '';
+
+                    // Check if this team has a match against the selected opponent
+                    const opponentMatch = team.fixtures.find(fixture => 
+                        (fixture.homeTeam === team.teamName && fixture.awayTeam === selectedOpponent) ||
+                        (fixture.awayTeam === team.teamName && fixture.homeTeam === selectedOpponent)
+                    );
+
+                    if (opponentMatch) {
+                        // Now, compare this match with the allComparisons data
+                        // This part needs more specific logic based on how allComparisons is structured
+                        // and what "same way" means for comparison.
+                        // For now, let's assume we are looking for a similar pattern of opponent and position
+
+                        // Example: Find if any of the original comparisons match this opponent and a similar position
+                        let foundComparison = false;
+                        for (const comparison of allComparisons) {
+                            for (const match of comparison.matches) {
+                                // This is a simplified check. You might need more complex logic
+                                // based on the exact definition of "same way"
+                                if (match.opponent === selectedOpponent) {
+                                    foundComparison = true;
+                                    matchDetails = `${team.teamName}, ${selectedOpponent} takımıyla karşılaşmadan önce ${match.position} maç önce benzer bir eşleşme yaşadı.`;
+                                    break;
+                                }
+                            }
+                            if (foundComparison) break;
+                        }
+
+                        if (foundComparison) {
+                            analysisResultsDiv.innerHTML += `<p>${matchDetails}</p>`;
+                        } else {
+                            analysisResultsDiv.innerHTML += `<p>${team.teamName} - Hiçbir eşleşmeye uymadı.</p>`;
+                        }
+
+                    } else {
+                        analysisResultsDiv.innerHTML += `<p>${team.teamName} - ${selectedOpponent} ile maçı bulunamadı.</p>`;
+                    }
+                }
+            });
+
+            backToComparisonBtn.addEventListener('click', () => {
+                window.location.href = 'compare.html';
+            });
+
+            // Helper function (assuming it's the same as in compare.html)
+            function getTeamNameFromFixtures(fixtures) {
+                if (!fixtures || fixtures.length === 0) {
+                    return 'Bilinmeyen Takım';
+                }
+
+                const teamNames = {};
+                fixtures.forEach(fixture => {
+                    teamNames[fixture.homeTeam] = (teamNames[fixture.homeTeam] || 0) + 1;
+                    teamNames[fixture.awayTeam] = (teamNames[fixture.awayTeam] || 0) + 1;
+                });
+
+                let mainTeamName = '';
+                let maxCount = 0;
+                for (const team in teamNames) {
+                    if (teamNames[team] > maxCount) {
+                        maxCount = teamNames[team];
+                        mainTeamName = team;
+                    }
+                }
+                return mainTeamName;
+            }
+        });
+    </script>
+</body>
+</html>
